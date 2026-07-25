@@ -1,9 +1,12 @@
 ---
 title: "MCP Tools：给模型一把靠谱的工具箱"
 date: 2026-07-25
+layout: post
+description: "从协议设计到主流 Agent 配置，拆解 MCP Tools 如何让模型稳定、安全地连接外部能力。"
+category: "AI Agent"
 tags: ["MCP", "AI Agent", "Function Calling", "Codex", "工程实践"]
-status: "published"
-summary: "从工程实践角度介绍 MCP tools 的概念、协议、传输方式、配置方法和使用场景。"
+featured: true
+cover_style: "mcp"
 ---
 
 # MCP Tools：给模型一把靠谱的工具箱
@@ -399,4 +402,3 @@ MCP 的真正意义，不是给模型加了一个花哨的新接口，而是把�
 当然，协议不会自动让模型变聪明。它只是让聪明更容易落地，让混乱更少一点。
 
 这就已经很值钱了。
-

@@ -2,14 +2,14 @@ title: Ivy 技术博客
 description: AI Agent、测试开发、工程实践与技术成长记录
 url: "https://ivyzhang.github.io"
 baseurl: "/blog"
+author: Ivy Zhang
 markdown: kramdown
 theme: minima
 plugins:
   - jekyll-feed
 
-collections:
-  posts:
-    output: true
+permalink: /articles/:title/
 
 exclude:
   - templates
+  - README.md

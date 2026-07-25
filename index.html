@@ -1,16 +1,99 @@
 ---
-layout: home
-title: Ivy 技术博客
+layout: default
+title: 首页
 ---
 
-<h1>Ivy 技术博客</h1>
+<main id="main-content">
+  <section class="intro shell" aria-labelledby="intro-title">
+    <p class="eyebrow">IVY / TECH NOTES</p>
+    <div class="intro-grid">
+      <h1 id="intro-title">把复杂系统，<br>讲到可以动手。</h1>
+      <div class="intro-copy">
+        <p>关于 AI Agent、测试开发与工程效能的实践记录。关注真实系统里的边界、取舍和可落地方案。</p>
+        <div class="intro-meta" aria-label="博客概览">
+          <span><strong>{{ site.posts | size }}</strong> 篇文章</span>
+          <span><strong>4</strong> 个主题</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
-<p>记录 AI Agent、测试开发、工程实践和技术成长。</p>
+  <section class="featured-section" aria-labelledby="featured-title">
+    <div class="shell">
+      <div class="section-heading">
+        <div>
+          <p class="section-index">01 / FEATURED</p>
+          <h2 id="featured-title">精选文章</h2>
+        </div>
+        <p>从协议、工具到质量系统，记录值得反复推敲的工程问题。</p>
+      </div>
 
-<h2>最新文章</h2>
+      <div class="featured-grid">
+        {% assign featured_posts = site.posts | where: "featured", true %}
+        {% for post in featured_posts limit: 2 %}
+        <article class="featured-card">
+          <a class="featured-visual{% if post.cover_style %} featured-visual--{{ post.cover_style }}{% endif %}" href="{{ post.url | relative_url }}" aria-label="阅读：{{ post.title }}">
+            {% if post.cover %}
+            <img src="{{ post.cover | relative_url }}" alt="{{ post.title }}文章配图">
+            {% else %}
+            <div class="protocol-cover" aria-hidden="true">
+              <span class="protocol-label">MODEL CONTEXT PROTOCOL</span>
+              <div class="protocol-nodes">
+                <span>HOST</span><i></i><span>CLIENT</span><i></i><span>TOOLS</span>
+              </div>
+              <strong>MCP</strong>
+            </div>
+            {% endif %}
+          </a>
+          <div class="featured-body">
+            <div class="article-meta">
+              <span class="category">{{ post.category }}</span>
+              <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%Y.%m.%d" }}</time>
+            </div>
+            <h3><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h3>
+            <p>{{ post.description }}</p>
+            <a class="read-link" href="{{ post.url | relative_url }}">阅读全文 <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
 
-<ul>
-  {% for post in site.posts %}
-  <li><a href="{{ post.url | relative_url }}">{{ post.title }}</a></li>
-  {% endfor %}
-</ul>
+  <section class="articles-section shell" id="articles" aria-labelledby="articles-title">
+    <div class="section-heading section-heading--articles">
+      <div>
+        <p class="section-index">02 / ARCHIVE</p>
+        <h2 id="articles-title">全部文章</h2>
+      </div>
+      <div class="filter-bar" role="group" aria-label="按主题筛选文章">
+        <button class="filter-button is-active" type="button" data-filter="all" aria-pressed="true">全部</button>
+        <button class="filter-button" type="button" data-filter="AI Agent" aria-pressed="false">AI Agent</button>
+        <button class="filter-button" type="button" data-filter="测试开发" aria-pressed="false">测试开发</button>
+        <button class="filter-button" type="button" data-filter="工程效能" aria-pressed="false">工程效能</button>
+        <button class="filter-button" type="button" data-filter="开源实践" aria-pressed="false">开源实践</button>
+      </div>
+    </div>
+
+    <div class="article-grid" data-article-grid>
+      {% for post in site.posts %}
+      <article class="article-card" data-categories="{{ post.category }} {{ post.tags | join: ' ' }}">
+        <a href="{{ post.url | relative_url }}" class="article-card-link">
+          <div class="article-meta">
+            <span class="category">{{ post.category }}</span>
+            <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%Y.%m.%d" }}</time>
+          </div>
+          <h3>{{ post.title }}</h3>
+          <p>{{ post.description }}</p>
+          <div class="article-card-footer">
+            <span>{{ post.tags | size }} 个标签</span>
+            <span aria-hidden="true">↗</span>
+          </div>
+        </a>
+      </article>
+      {% endfor %}
+    </div>
+
+    <p class="empty-state" data-empty-state hidden>这个主题的文章还在路上。</p>
+  </section>
+</main>
