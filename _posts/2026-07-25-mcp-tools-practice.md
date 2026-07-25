@@ -25,7 +25,7 @@ Function Calling 的基本流程很直接：应用把工具定义发给模型，
 
 下面的例子模拟一个测试平台查询接口。模型负责判断“应该查哪个测试运行”，应用负责真正访问平台 API。这个边界很重要：模型不应该直接拥有数据库连接，也不应该绕过权限检查。
 
-<details>
+<details markdown="1">
 <summary>展开 Function Calling 示例：查询测试运行结果</summary>
 
 ```python
@@ -134,7 +134,7 @@ MCP 目前常见的三类能力是：
 
 下面的例子使用 MCP Python SDK 的 `FastMCP`。它包含一个网页抓取 Tool、一个日志 Resource 和一个代码审查 Prompt。示例重点是接口边界，生产环境还需要补充认证、超时、审计日志和访问控制。
 
-<details>
+<details markdown="1">
 <summary>展开 MCP Server 示例：Tool、Resource 和 Prompt</summary>
 
 ```python
@@ -205,7 +205,7 @@ Host 启动 Server 子进程，通过 `stdin` 写入换行分隔的 JSON-RPC 消
 
 下面这个工具扫描项目里的 TODO，调用过程和普通本地脚本一样，权限自然继承当前用户。
 
-<details>
+<details markdown="1">
 <summary>展开 STDIO Server 示例</summary>
 
 ```python
@@ -246,7 +246,7 @@ Streamable HTTP 是当前的远程传输方式。一个 MCP endpoint 同时支�
 
 下面把 CI 构建查询做成一个远程服务。示例绑定在本机，部署到服务器时应放在 TLS、认证、Origin 校验、限流和审计之后。
 
-<details>
+<details markdown="1">
 <summary>展开 Streamable HTTP Server 示例</summary>
 
 ```python
@@ -284,7 +284,7 @@ if __name__ == "__main__":
 
 如果内部还有旧版 MCP Client，可以暂时保留这个 transport。新服务优先使用 Streamable HTTP。
 
-<details>
+<details markdown="1">
 <summary>展开旧版 SSE Server 示例</summary>
 
 ```python
@@ -338,7 +338,7 @@ Function Calling 的优点是简单、可控、调试路径短。MCP 的优点�
 
 本地编辑器通常直接启动 MCP Server。配置时使用绝对路径，并确保运行环境里已经安装依赖。
 
-<details>
+<details markdown="1">
 <summary>展开本地 Agent 配置示例</summary>
 
 ```json
@@ -360,7 +360,7 @@ Function Calling 的优点是简单、可控、调试路径短。MCP 的优点�
 
 远程部署时把 Server 运行在服务端地址，并把 endpoint 交给 Agent 的 MCP Client。不要把开发机临时暴露到公网作为长期方案；本地联调可以使用 ngrok，但生产环境应使用正式域名、TLS 和鉴权。
 
-<details>
+<details markdown="1">
 <summary>展开 HTTP 模式启动示例</summary>
 
 ```bash
@@ -375,7 +375,7 @@ ngrok http 8000
 
 远程 Client 使用类似下面的 endpoint：
 
-<details>
+<details markdown="1">
 <summary>展开远程 endpoint 配置示例</summary>
 
 ```json
