@@ -4,6 +4,8 @@ url: "https://ivyzhang.github.io"
 baseurl: "/blog"
 author: Ivy Zhang
 markdown: kramdown
+kramdown:
+  syntax_highlighter: rouge
 theme: minima
 plugins:
   - jekyll-feed
