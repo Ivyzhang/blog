@@ -133,11 +133,123 @@ if __name__ == "__main__":
 
 ## 四、 传输方式与使用场景的“神仙打架”
 
-MCP 协议定义了三种截然不同的**底层传输层（Transport Layer）拓扑结构**：
+当前 MCP 规范定义了两种标准传输：**STDIO** 与 **Streamable HTTP**。SSE 则来自早期 HTTP+SSE transport，今天主要承担旧客户端兼容工作。三者都使用 UTF-8 编码的 JSON-RPC 消息，而不是随意往管道里塞二进制数据。
 
-1.  **STDIO** (默认)：本地父子进程间通过系统标准输入输出（stdin/stdout）直接读写二进制流。**零网络开销**、极速响应。最适合 **AI 编辑器本地增强**（Cursor、Windsurf 插件本地运行）。
-2.  **Streamable HTTP**：2026年最新标准。基于 HTTP 协议的高级双向实时长连接流。**支持真正意义上的双向数据流式传输**。最适合 **云端智能体微服务群**（如 Devin 远程沙盒调用内部微服务）。
-3.  **SSE** (Server-Sent Events)：基于经典 HTTP 的单向服务器推流。最适合 **企业内部旧系统集成** 和前端轻量挂载。
+### 1. STDIO：本地父子进程通信
+
+STDIO 是默认模式。AI 编辑器作为 Host 启动 MCP server 子进程，通过 `stdin` 发送换行分隔的 JSON-RPC 消息，server 通过 `stdout` 返回协议消息。
+
+下面这个本地工具扫描项目中的 TODO，适合 Cursor、Windsurf 或 Codex 在本机直接调用：
+
+```python
+# server_stdio.py
+from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("local-code-tools")
+
+
+@mcp.tool()
+def find_todos(root: str = ".", limit: int = 20) -> list[dict]:
+    """Find TODO comments in local Python files."""
+    matches: list[dict] = []
+
+    for path in Path(root).rglob("*.py"):
+        for line_number, line in enumerate(path.read_text().splitlines(), 1):
+            if "TODO" not in line:
+                continue
+
+            matches.append(
+                {
+                    "file": str(path),
+                    "line": line_number,
+                    "text": line.strip(),
+                }
+            )
+            if len(matches) >= limit:
+                return matches
+
+    return matches
+
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+
+STDIO 没有网络监听和 HTTP 握手，响应快，权限也自然跟随本地用户。需要特别注意：普通日志必须写到 `stderr`，不能写进 `stdout` 污染协议流。
+
+### 2. Streamable HTTP：远程智能体微服务
+
+Streamable HTTP 是当前标准的远程传输。server 提供一个同时支持 `POST` 和 `GET` 的 MCP endpoint：客户端用 `POST` 发送 JSON-RPC 消息，server 可以直接返回 JSON，也可以按需打开 SSE 流；客户端还可以用 `GET` 建立 server-to-client 事件流。
+
+下面把 CI 构建查询工具部署为远程 MCP 服务：
+
+```python
+# server_http.py
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(
+    "cloud-build-service",
+    host="127.0.0.1",
+    port=8000,
+)
+
+BUILDS = {
+    "build-101": {"status": "passed", "duration_seconds": 83},
+    "build-102": {"status": "running", "duration_seconds": None},
+}
+
+
+@mcp.tool()
+def get_build(build_id: str) -> dict:
+    """Return the current state of a CI build."""
+    return BUILDS.get(build_id, {"status": "not_found"})
+
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")
+```
+
+启动后，MCP endpoint 默认为 `http://127.0.0.1:8000/mcp`。生产环境应放在 TLS 和鉴权之后，同时验证 `Origin`、配置超时和限流。它适合 Devin 一类远程沙盒、云端 Agent 集群和企业内部工具网关。
+
+Streamable HTTP 不是一条永不关闭的 WebSocket。它通过普通 HTTP 请求与可选 SSE 流组合出双向通信能力：请求可以短连接返回，长任务才需要保持事件流。
+
+### 3. SSE：兼容旧 HTTP+SSE 系统
+
+协议版本 `2024-11-05` 使用过独立的 HTTP+SSE transport：客户端通过 SSE endpoint 接收 server 消息，再通过另一个 HTTP endpoint 向 server 发消息。Streamable HTTP 已经取代这种双 endpoint 设计。
+
+如果内部平台还运行着旧版 MCP client，可以临时保留 legacy SSE server：
+
+```python
+# server_legacy_sse.py
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(
+    "legacy-ticket-service",
+    host="127.0.0.1",
+    port=8000,
+)
+
+
+@mcp.tool()
+def get_ticket(ticket_id: str) -> dict:
+    """Read a ticket from a legacy internal system."""
+    return {
+        "id": ticket_id,
+        "status": "open",
+        "owner": "platform-team",
+    }
+
+
+if __name__ == "__main__":
+    # 仅用于兼容旧客户端；新服务优先使用 streamable-http。
+    mcp.run(transport="sse")
+```
+
+SSE 本身只有 server-to-client 单向推送能力；旧 MCP transport 依赖额外的 HTTP POST endpoint 补上 client-to-server 方向。它适合企业旧系统迁移期兼容，不适合作为 2026 年新 MCP 服务的默认方案。
+
+工程上可以这样记：**STDIO 是本地进程管道，Streamable HTTP 是当前远程标准，HTTP+SSE 是兼容历史客户端的过渡层。**具体协议要求可参考 [MCP 官方 Transports 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)。
 
 ---
 
@@ -178,9 +290,9 @@ Devin 运行在独立的云端 Linux 沙盒环境中，无法通过本地 stdio 
 if __name__ == "__main__":
     import os
     if os.getenv("MCP_TRANSPORT", "").lower() == "http":
-        mcp.run(transport="streamable-http", port=8000, path="/mcp")
+        mcp.run(transport="streamable-http")
     else:
-        mcp.run()
+        mcp.run(transport="stdio")
 ```
 
 #### 第二步：公网边界暴露（内网穿透）
