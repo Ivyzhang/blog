@@ -9,8 +9,6 @@ featured: true
 cover: "/assets/images/covivy-flow.png"
 ---
 
-# 总覆盖率 90%，新代码却没测：我做了一个专盯 PR 的覆盖率工具
-
 > 项目总覆盖率是全班平均分，Covivy 更关心这次交作业的人到底写没写。
 
 有一种很有迷惑性的绿色，叫作 CI 页面上的 `Coverage 90%`。
@@ -34,8 +32,6 @@ Covivy 是一个开源、自托管、面向 Pull Request 的代码覆盖率服�
 - Dashboard 展示文件和行级别的缺失覆盖，让“覆盖率不够”变成“这几行需要补测试”。
 
 它不是把一个百分比换个颜色再显示一次。它试图让覆盖率真正进入 code review，而不是只在季度质量报告里露个脸。
-
-![Covivy 从 CI 到 PR 反馈的工作流程]({{ '/assets/images/covivy-flow.png' | relative_url }})
 
 ## 为什么不能只数 diff 里的行
 
