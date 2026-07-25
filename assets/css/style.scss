@@ -209,10 +209,10 @@ button { font: inherit; }
 .code-copy:hover, .code-copy:focus-visible { color: #8fd9b7; }
 .code-viewport { max-height: 320px; display: flex; overflow: hidden; background: #272b31; }
 .code-fold.is-expanded .code-viewport { max-height: none; }
-.code-gutter { flex: 0 0 auto; margin: 0; padding: 22px 12px 22px 14px; color: #8f98a7; border-right: 1px solid #aab1bb; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.65; text-align: right; white-space: pre; user-select: none; }
-.code-viewport > .highlighter-rouge, .code-viewport > pre { min-width: 0; flex: 1 1 auto; margin: 0; overflow-x: auto; background: #272b31; }
+.code-viewport > .code-gutter { width: 52px; flex: 0 0 52px; margin: 0; padding: 22px 10px 22px 0; overflow: hidden; color: #8f98a7; border-right: 1px solid #aab1bb; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.65; text-align: right; white-space: pre; user-select: none; }
+.code-viewport > .highlighter-rouge, .code-viewport > pre:not(.code-gutter) { min-width: 0; flex: 1 1 auto; margin: 0; overflow-x: auto; overflow-y: hidden; background: #272b31; }
 .code-fold .highlight { margin: 0; background: #272b31; }
-.code-fold .highlight > pre, .code-fold .code-viewport > pre { min-height: 100%; margin: 0; padding: 22px 18px; color: #b8c0cc; background: #272b31; border-radius: 0; }
+.code-fold .highlight > pre, .code-fold .code-viewport > pre:not(.code-gutter) { min-height: 100%; margin: 0; padding: 22px 18px; color: #b8c0cc; background: #272b31; border-radius: 0; }
 .code-expand { position: relative; z-index: 1; display: block; width: 100%; height: 48px; margin: -48px 0 0; padding: 18px 14px 8px; color: #c4c9d1; background: rgba(24, 26, 29, .92); border: 0; cursor: pointer; text-align: center; font-size: 13px; }
 .code-expand::after { content: "⌄"; display: inline-block; margin-left: 7px; font-size: 18px; line-height: 10px; }
 .code-fold.is-expanded .code-expand { margin-top: 0; padding-top: 8px; background: #202329; border-top: 1px solid #3c424a; }
