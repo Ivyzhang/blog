@@ -1,0 +1,16 @@
+---
+layout: home
+title: Ivy 技术博客
+---
+
+<h1>Ivy 技术博客</h1>
+
+<p>记录 AI Agent、测试开发、工程实践和技术成长。</p>
+
+<h2>最新文章</h2>
+
+<ul>
+  {% for post in site.posts %}
+  <li><a href="{{ post.url | relative_url }}">{{ post.title }}</a></li>
+  {% endfor %}
+</ul>
