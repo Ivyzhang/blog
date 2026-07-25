@@ -25,8 +25,9 @@ Function Calling 的基本流程很直接：应用把工具定义发给模型，
 
 下面的例子模拟一个测试平台查询接口。模型负责判断“应该查哪个测试运行”，应用负责真正访问平台 API。这个边界很重要：模型不应该直接拥有数据库连接，也不应该绕过权限检查。
 
-<details markdown="1">
-<summary>展开 Function Calling 示例：查询测试运行结果</summary>
+<div class="code-fold" markdown="1">
+<input id="code-function-calling" type="checkbox">
+<label for="code-function-calling">显示全部代码：Function Calling 查询测试运行结果</label>
 
 ```python
 from openai import OpenAI
@@ -110,7 +111,7 @@ second = client.chat.completions.create(
 print(second.choices[0].message.content)
 ```
 
-</details>
+</div>
 
 这个方案的优点是接入成本低、调用链清楚，适合一个应用自己维护少量工具。缺点也很明显：工具 schema 和执行逻辑都在应用里；换模型供应商时，调用格式和错误处理通常需要重新适配；多个项目要复用同一个工具时，容易复制出几份略有差异的实现。
 
@@ -134,8 +135,9 @@ MCP 目前常见的三类能力是：
 
 下面的例子使用 MCP Python SDK 的 `FastMCP`。它包含一个网页抓取 Tool、一个日志 Resource 和一个代码审查 Prompt。示例重点是接口边界，生产环境还需要补充认证、超时、审计日志和访问控制。
 
-<details markdown="1">
-<summary>展开 MCP Server 示例：Tool、Resource 和 Prompt</summary>
+<div class="code-fold" markdown="1">
+<input id="code-mcp-server" type="checkbox">
+<label for="code-mcp-server">显示全部代码：MCP Server 的 Tool、Resource 和 Prompt</label>
 
 ```python
 import logging
@@ -191,7 +193,7 @@ if __name__ == "__main__":
     mcp.run(transport="stdio")
 ```
 
-</details>
+</div>
 
 这里有几个容易被忽略的工程问题：Tool 的返回值应该限制大小，避免一次把整份日志塞进上下文；外部 HTTP 调用必须设置超时；写给人的日志要走 `stderr`，不能污染 STDIO 的协议输出；有副作用的 Tool 还应当设计幂等键和二次确认。
 
@@ -205,8 +207,9 @@ Host 启动 Server 子进程，通过 `stdin` 写入换行分隔的 JSON-RPC 消
 
 下面这个工具扫描项目里的 TODO，调用过程和普通本地脚本一样，权限自然继承当前用户。
 
-<details markdown="1">
-<summary>展开 STDIO Server 示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-stdio" type="checkbox">
+<label for="code-stdio">显示全部代码：STDIO Server</label>
 
 ```python
 from pathlib import Path
@@ -236,7 +239,7 @@ if __name__ == "__main__":
     mcp.run(transport="stdio")
 ```
 
-</details>
+</div>
 
 STDIO 的代价是只能在能启动该进程的环境里使用。配置 IDE 时应填写 Python 和脚本的绝对路径；普通日志写到 `stderr`，否则会把协议流打坏。
 
@@ -246,8 +249,9 @@ Streamable HTTP 是当前的远程传输方式。一个 MCP endpoint 同时支�
 
 下面把 CI 构建查询做成一个远程服务。示例绑定在本机，部署到服务器时应放在 TLS、认证、Origin 校验、限流和审计之后。
 
-<details markdown="1">
-<summary>展开 Streamable HTTP Server 示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-streamable-http" type="checkbox">
+<label for="code-streamable-http">显示全部代码：Streamable HTTP Server</label>
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -274,7 +278,7 @@ if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 ```
 
-</details>
+</div>
 
 默认 endpoint 是 `http://127.0.0.1:8000/mcp`。它不是一条永不关闭的 WebSocket 连接，而是普通 HTTP 请求与可选事件流的组合。对云端 Agent、远程沙盒和企业内部工具网关来说，这种方式比本地 STDIO 更容易部署和治理。
 
@@ -284,8 +288,9 @@ if __name__ == "__main__":
 
 如果内部还有旧版 MCP Client，可以暂时保留这个 transport。新服务优先使用 Streamable HTTP。
 
-<details markdown="1">
-<summary>展开旧版 SSE Server 示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-sse" type="checkbox">
+<label for="code-sse">显示全部代码：旧版 SSE Server</label>
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -311,7 +316,7 @@ if __name__ == "__main__":
     mcp.run(transport="sse")
 ```
 
-</details>
+</div>
 
 SSE 适合迁移期和旧系统集成，不建议把它作为新 MCP 服务的默认选项。协议细节可参考 [MCP 官方 Transports 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)。
 
@@ -338,8 +343,9 @@ Function Calling 的优点是简单、可控、调试路径短。MCP 的优点�
 
 本地编辑器通常直接启动 MCP Server。配置时使用绝对路径，并确保运行环境里已经安装依赖。
 
-<details markdown="1">
-<summary>展开本地 Agent 配置示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-agent-config" type="checkbox">
+<label for="code-agent-config">显示全部代码：本地 Agent 配置</label>
 
 ```json
 {
@@ -352,7 +358,7 @@ Function Calling 的优点是简单、可控、调试路径短。MCP 的优点�
 }
 ```
 
-</details>
+</div>
 
 不同编辑器的配置文件位置和字段名称可能不同，最终以客户端当前版本的设置页面为准。验证时先观察 Server 是否成功启动，再确认工具列表能否被发现，最后用一个只读工具做调用测试。
 
@@ -360,8 +366,9 @@ Function Calling 的优点是简单、可控、调试路径短。MCP 的优点�
 
 远程部署时把 Server 运行在服务端地址，并把 endpoint 交给 Agent 的 MCP Client。不要把开发机临时暴露到公网作为长期方案；本地联调可以使用 ngrok，但生产环境应使用正式域名、TLS 和鉴权。
 
-<details markdown="1">
-<summary>展开 HTTP 模式启动示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-http-start" type="checkbox">
+<label for="code-http-start">显示全部代码：HTTP 模式启动</label>
 
 ```bash
 export MCP_TRANSPORT=http
@@ -371,12 +378,13 @@ python server.py
 ngrok http 8000
 ```
 
-</details>
+</div>
 
 远程 Client 使用类似下面的 endpoint：
 
-<details markdown="1">
-<summary>展开远程 endpoint 配置示例</summary>
+<div class="code-fold" markdown="1">
+<input id="code-remote-config" type="checkbox">
+<label for="code-remote-config">显示全部代码：远程 endpoint 配置</label>
 
 ```json
 {
@@ -391,7 +399,7 @@ ngrok http 8000
 }
 ```
 
-</details>
+</div>
 
 ## 六、测试工程师最容易踩到的坑
 
