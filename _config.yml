@@ -1,0 +1,10 @@
+title: Ivy 技术博客
+description: AI Agent、测试开发、工程实践与技术成长记录
+markdown: kramdown
+theme: minima
+plugins:
+  - jekyll-feed
+
+collections:
+  posts:
+    output: true
