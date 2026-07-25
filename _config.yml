@@ -10,3 +10,6 @@ plugins:
 collections:
   posts:
     output: true
+
+exclude:
+  - templates
