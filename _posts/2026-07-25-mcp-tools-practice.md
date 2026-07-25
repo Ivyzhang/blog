@@ -1,175 +1,234 @@
 ---
-title: "MCP Tools：给模型一把靠谱的工具箱"
+title: "MCP Tools：从函数调用到可维护的工具服务"
 date: 2026-07-25
 layout: post
-description: "从协议设计到主流 Agent 配置，拆解 MCP Tools 如何让模型稳定、安全地连接外部能力。"
+description: "从测试工程实践出发，梳理 MCP Tools、Function Calling、三种传输方式和主流 Agent 配置。"
 category: "AI Agent"
 tags: ["MCP", "AI Agent", "Function Calling", "Codex", "工程实践"]
 featured: true
 cover_style: "mcp"
 ---
-别再给大模型手写胶水代码了！MCP (Model Context Protocol) 全景落地实战
 
 > **作者**：Ivy Zhang
-> **时效性**：2026年最新标准框架 `FastMCP` 落地指南  
 
----
+如果只是让模型调用一个函数，Function Calling 已经够用。真正麻烦的是工具数量上来以后：每个模型的 schema 格式不同，参数校验散落在业务代码里，工具改名以后要同时改 prompt、路由和测试，出了问题还不容易判断到底是模型选错了工具，还是服务端执行失败。
 
-你好，同行。如果你现在还在为 OpenAI 写一套 JSON Schema，为 Anthropic 写一套 Tool XML，为了让 AI 读个本地文件还要自己手写 API 路由和对齐参数字典，听我一句劝：**放下手里那根钻木取火的木棍，来看看什么是工业革命。**
+MCP（Model Context Protocol）解决的不是“模型会不会调用函数”这个问题，而是把工具发现、参数约束、传输和服务生命周期放到一个约定里。对测试工程师来说，它更像一个可观测、可替换的工具接入层：测试结果、构建状态、日志和代码扫描能力可以独立部署，也可以被不同的 Agent 复用。
 
-今天我们来聊聊 **MCP（Model Context Protocol，模型上下文协议）**。这篇文章不玩虚的，我会用最幽默（但也最硬核）的方式，带你从底层概念、历史由来，一路杀到高并发异步代码实现，最后直接把它挂载到你的 Cursor 或 Devin 里。
+本文从 Function Calling 开始，逐步写出一个包含 Tool、Resource 和 Prompt 的 MCP Server，再比较 STDIO、Streamable HTTP 和旧版 SSE transport 的适用范围。
 
----
+## 一、为什么需要 MCP
 
-## 一、 为什么会有 MCP？（API 时代的“无产阶级愤怒”）
+### 1. Function Calling 能做什么
 
-在聊 MCP 之前，我们先来复盘一下传统的 **Function Calling（函数调用）** 让我们掉过的头发。
+Function Calling 的基本流程很直接：应用把工具定义发给模型，模型返回一个工具调用请求，应用执行本地函数，再把结果发回模型。
 
-### 1. 传统 Function Calling 的“精神分裂”
-传统的 Function Calling 本质上是一种**“传话筒”机制**。
+下面的例子模拟一个测试平台查询接口。模型负责判断“应该查哪个测试运行”，应用负责真正访问平台 API。这个边界很重要：模型不应该直接拥有数据库连接，也不应该绕过权限检查。
 
-听起来挺完美的对吧？但如果你要在项目里接 **50个工具** 呢？
-*   **格式地狱**：你需要手写 50 个极其冗长的 JSON Schema。字段改一个字，大模型就给你报 `BadRequestError`。
-*   **平台绑定**：OpenAI 的 `tools` 参数和 Anthropic 的 XML 标签、Gemini 的 Function 格式全然不同。换个模型，你得重写整个胶水层。
-*   **单向死板**：AI 只能“被动接受调用”。如果 AI 想主动去**“读”**一个持续更新的本地日志文件（Resource），或者想调用一个标准化的**“提示词模板”**（Prompt），Function Calling 直接抓瞎，你必须在业务层写一堆复杂的打补丁代码。
-
-### 2. 救世主 MCP 的诞生：AI 界的 USB-C 接口
-为了终结这种混乱，Anthropic 联合业界推出了 **MCP（模型上下文协议）**。
-
-它直接把架构降维打击成了 **C/S（Client/Server）架构**。
-*   **对大模型/AI客户端（Client）而言**：它只需要实现一套 MCP 客户端协议，就能无缝接入世界上任何一个 MCP 服务端。
-*   **对开发者/工具链（Server）而言**：你只需要用标准协议暴露出你的工具、资源和提示词，任何兼容 MCP 的 AI（Cursor、Devin、Claude Desktop、或者是你自己写的 Agent 框架）都能**即插即用**。
-
-这就好比当年各种手机充电口乱七八糟（Function Calling），而 MCP 就是那根**统一天下的 USB-C 线**。
-
----
-
-## 二、 核心概念：MCP 的“三维奥义”
-
-很多人误以为 “MCP = 更高级的 Function Calling”，这严重低估了它的野心。在 MCP 的世界里，有三大核心支柱共同撑起大模型的全栈上下文：
-
-1.  **Tools（工具 - 肌肉）**：大模型的执行引擎。大模型可以**“主动调用”**它来改变世界（如：写文件、调 API、删数据库）。
-2.  **Resources（资源 - 血液）**：大模型的数据供给站。大模型可以像人类通过浏览器输入 URL 一样，去**“主动读取”**系统暴露的静态或动态数据（如：实时日志流、数据库配置、本地 Git 仓库状态）。
-3.  **Prompts（提示词 - 大脑）**：控制 LLM 行为的智能模板。把常用的高级 Prompt 固化在服务端，客户端动态注入变量（如：一键开启“专家级代码审查模式”）。
-
----
-
-## 三、 硬核全栈代码举例（高并发异步多功能 Server）
-
-光说不练假把式。下面我们用 Python 官方推荐的最新高级框架 `FastMCP`，写一个稍微复杂的、生产级别的 MCP 服务器。
-
-这个服务器不仅包含一个**带重试机制的异步网页数据抓取工具（Tool）**，还包含一个**动态系统日志监听流（Resource）**，以及一个**专家级代码审查模板（Prompt）**。
+<details>
+<summary>展开 Function Calling 示例：查询测试运行结果</summary>
 
 ```python
-import asyncio
-import logging
-from datetime import datetime
-import httpx
-from bs4 import BeautifulSoup
-from fastmcp import FastMCP
+from openai import OpenAI
 
-# 初始化一个高能 MCP 服务节点
-mcp = FastMCP(
-    "Enterprise-Architect-Suite",
-    version="2026.1.0",
-    description="为现代 AI Agent 提供高并发网络抓取、实时日志审计及专业Prompt治理的核心基础设施"
+client = OpenAI()
+
+
+def query_test_run(run_id: str) -> dict:
+    """实际项目中，这里通常会调用测试平台 API。"""
+    runs = {
+        "run-2026-0725": {
+            "status": "failed",
+            "failed": 3,
+            "passed": 127,
+            "flaky": 2,
+        }
+    }
+    return runs.get(run_id, {"status": "not_found"})
+
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_test_run",
+            "description": "查询一次自动化测试运行的汇总结果",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "string",
+                        "description": "测试运行 ID，例如 run-2026-0725",
+                    }
+                },
+                "required": ["run_id"],
+                "additionalProperties": False,
+            },
+        },
+    }
+]
+
+messages = [
+    {
+        "role": "user",
+        "content": "请告诉我 run-2026-0725 是否通过，并说明失败数量。",
+    }
+]
+
+first = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools,
+    tool_choice="auto",
 )
 
-# 配置本地日志，用于模拟 Resource
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+assistant_message = first.choices[0].message
+messages.append(assistant_message)
 
-# ==========================================
-# 维度一：Tools（异步高并发网络内容抓取工具）
-# ==========================================
-@mcp.tool()
-async def async_web_scraper(url: str, selector: str = "article") -> str:
-    """
-    异步高并发网页核心内容提取工具。
-    当标准搜索摘要不够深入，或者需要深度分析某个特定网页、技术文档或新闻时使用。
-    """
-    logging.info(f"AI 正在请求抓取网页: {url}")
-    
-    limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-    async with httpx.AsyncClient(limits=limits, timeout=8.0) as client:
-        try:
-            response = await client.get(url, headers={"User-Agent": "MCP-Bot/1.0"})
-            response.raise_for_status()
-        except Exception as e:
-            return f"网络异常: {str(e)}"
+for tool_call in assistant_message.tool_calls or []:
+    if tool_call.function.name != "query_test_run":
+        continue
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    for trash in soup(["script", "style", "iframe", "header", "footer", "nav"]):
-        trash.decompose()
-        
-    target_element = soup.select_one(selector) or soup.select_one("body")
-    if not target_element:
-        return "未能成功提取到网页文本内容。"
+    import json
 
-    clean_text = " ".join(target_element.get_text().split())
-    return f"--- 成功截取 {url} 前 5000 字符 ---\n\n{clean_text[:5000]}"
+    arguments = json.loads(tool_call.function.arguments)
+    result = query_test_run(**arguments)
+    messages.append(
+        {
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": json.dumps(result, ensure_ascii=False),
+        }
+    )
 
-# ==========================================
-# 维度二：Resources（状态化动态系统日志数据源）
-# ==========================================
-@mcp.resource(uri="resource://logs/{level}", name="system_live_logs")
-def get_system_logs(level: str) -> str:
-    """动态按需读取系统运行期实时日志快照。"""
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"[{current_time}] [{level.upper()}] 模拟日志管道正常监控中。"
+second = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools,
+)
 
-# ==========================================
-# 维度三：Prompts（高阶上下文引导提示词模板）
-# ==========================================
-@mcp.prompt()
-def expert_code_review(language: str, strictness: str = "extreme") -> str:
-    """一键激活高级代码审查模式。"""
-    return f"你现在是一位拥有 20 年经验的资深 {language} 架构师。请以 [{strictness}] 级别审查接下来的源码。"
-
-if __name__ == "__main__":
-    mcp.run()
+print(second.choices[0].message.content)
 ```
 
----
+</details>
 
-## 四、 传输方式与使用场景的“神仙打架”
+这个方案的优点是接入成本低、调用链清楚，适合一个应用自己维护少量工具。缺点也很明显：工具 schema 和执行逻辑都在应用里；换模型供应商时，调用格式和错误处理通常需要重新适配；多个项目要复用同一个工具时，容易复制出几份略有差异的实现。
 
-当前 MCP 规范定义了两种标准传输：**STDIO** 与 **Streamable HTTP**。SSE 则来自早期 HTTP+SSE transport，今天主要承担旧客户端兼容工作。三者都使用 UTF-8 编码的 JSON-RPC 消息，而不是随意往管道里塞二进制数据。
+### 2. MCP 解决的是接入和复用
+
+MCP 将调用方拆成 Host、Client 和 Server：
+
+1. **Host** 是 Cursor、Codex 或自建 Agent 应用，负责用户交互和模型调用。
+2. **Client** 负责与某一个 MCP Server 建立会话、发现能力并转发请求。
+3. **Server** 暴露工具和数据，不需要了解上层使用的是哪家模型。
+
+这种拆分让测试平台可以把“查询测试结果”“读取构建日志”“触发回归任务”作为独立能力提供出去。调用方只需要处理 MCP 协议，不必为每个 Agent 单独写一套适配层。
+
+MCP 目前常见的三类能力是：
+
+- **Tools**：有副作用或需要明确执行的动作，例如触发构建、创建缺陷、查询测试结果。
+- **Resources**：按 URI 读取的数据，例如日志快照、仓库状态或测试报告。
+- **Prompts**：可复用的提示模板，例如“按严重程度审查失败用例”。
+
+## 二、一个包含三类能力的 MCP Server
+
+下面的例子使用 MCP Python SDK 的 `FastMCP`。它包含一个网页抓取 Tool、一个日志 Resource 和一个代码审查 Prompt。示例重点是接口边界，生产环境还需要补充认证、超时、审计日志和访问控制。
+
+<details>
+<summary>展开 MCP Server 示例：Tool、Resource 和 Prompt</summary>
+
+```python
+import logging
+from datetime import datetime
+
+import httpx
+from bs4 import BeautifulSoup
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("test-engineering-tools")
+logging.basicConfig(level=logging.INFO)
+
+
+@mcp.tool()
+async def fetch_page(url: str, selector: str = "article") -> str:
+    """抓取网页正文，返回最多 5,000 个字符。"""
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        response = await client.get(
+            url,
+            headers={"User-Agent": "test-engineering-mcp/1.0"},
+        )
+        response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    for element in soup(["script", "style", "iframe", "nav"]):
+        element.decompose()
+
+    target = soup.select_one(selector) or soup.body
+    if target is None:
+        return "没有找到可读内容。"
+
+    text = " ".join(target.get_text().split())
+    return text[:5000]
+
+
+@mcp.resource("resource://logs/{level}")
+def read_logs(level: str) -> str:
+    """返回一个按级别过滤的日志快照。"""
+    now = datetime.now().isoformat(timespec="seconds")
+    return f"[{now}] level={level} message=test pipeline is healthy"
+
+
+@mcp.prompt()
+def review_failed_test(language: str = "python") -> str:
+    """生成失败用例的审查提示。"""
+    return (
+        f"请以测试工程师视角审查以下 {language} 失败用例，"
+        "优先判断是否为产品缺陷、测试数据问题或环境问题。"
+    )
+
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+
+</details>
+
+这里有几个容易被忽略的工程问题：Tool 的返回值应该限制大小，避免一次把整份日志塞进上下文；外部 HTTP 调用必须设置超时；写给人的日志要走 `stderr`，不能污染 STDIO 的协议输出；有副作用的 Tool 还应当设计幂等键和二次确认。
+
+## 三、传输方式和使用场景
+
+当前 MCP 规范定义的标准传输是 **STDIO** 和 **Streamable HTTP**。SSE 来自早期的 HTTP+SSE transport，仍可用于兼容旧客户端。三者传输的都是 UTF-8 编码的 JSON-RPC 消息，不是任意二进制流。
 
 ### 1. STDIO：本地父子进程通信
 
-STDIO 是默认模式。AI 编辑器作为 Host 启动 MCP server 子进程，通过 `stdin` 发送换行分隔的 JSON-RPC 消息，server 通过 `stdout` 返回协议消息。
+Host 启动 Server 子进程，通过 `stdin` 写入换行分隔的 JSON-RPC 消息，Server 通过 `stdout` 返回协议消息。没有网络监听，适合本地 IDE 和桌面 Agent。
 
-下面这个本地工具扫描项目中的 TODO，适合 Cursor、Windsurf 或 Codex 在本机直接调用：
+下面这个工具扫描项目里的 TODO，调用过程和普通本地脚本一样，权限自然继承当前用户。
+
+<details>
+<summary>展开 STDIO Server 示例</summary>
 
 ```python
-# server_stdio.py
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("local-code-tools")
+mcp = FastMCP("local-test-tools")
 
 
 @mcp.tool()
 def find_todos(root: str = ".", limit: int = 20) -> list[dict]:
-    """Find TODO comments in local Python files."""
-    matches: list[dict] = []
-
+    """查找 Python 文件中的 TODO。"""
+    matches = []
     for path in Path(root).rglob("*.py"):
         for line_number, line in enumerate(path.read_text().splitlines(), 1):
             if "TODO" not in line:
                 continue
-
             matches.append(
-                {
-                    "file": str(path),
-                    "line": line_number,
-                    "text": line.strip(),
-                }
+                {"file": str(path), "line": line_number, "text": line.strip()}
             )
             if len(matches) >= limit:
                 return matches
-
     return matches
 
 
@@ -177,20 +236,24 @@ if __name__ == "__main__":
     mcp.run(transport="stdio")
 ```
 
-STDIO 没有网络监听和 HTTP 握手，响应快，权限也自然跟随本地用户。需要特别注意：普通日志必须写到 `stderr`，不能写进 `stdout` 污染协议流。
+</details>
 
-### 2. Streamable HTTP：远程智能体微服务
+STDIO 的代价是只能在能启动该进程的环境里使用。配置 IDE 时应填写 Python 和脚本的绝对路径；普通日志写到 `stderr`，否则会把协议流打坏。
 
-Streamable HTTP 是当前标准的远程传输。server 提供一个同时支持 `POST` 和 `GET` 的 MCP endpoint：客户端用 `POST` 发送 JSON-RPC 消息，server 可以直接返回 JSON，也可以按需打开 SSE 流；客户端还可以用 `GET` 建立 server-to-client 事件流。
+### 2. Streamable HTTP：远程智能体和服务网关
 
-下面把 CI 构建查询工具部署为远程 MCP 服务：
+Streamable HTTP 是当前的远程传输方式。一个 MCP endpoint 同时支持 `POST` 和 `GET`：客户端用 `POST` 发送 JSON-RPC 消息，Server 可以直接返回 JSON，也可以按需返回 SSE 流；客户端还可以用 `GET` 接收 Server 推送的事件。
+
+下面把 CI 构建查询做成一个远程服务。示例绑定在本机，部署到服务器时应放在 TLS、认证、Origin 校验、限流和审计之后。
+
+<details>
+<summary>展开 Streamable HTTP Server 示例</summary>
 
 ```python
-# server_http.py
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
-    "cloud-build-service",
+    "ci-build-service",
     host="127.0.0.1",
     port=8000,
 )
@@ -203,7 +266,7 @@ BUILDS = {
 
 @mcp.tool()
 def get_build(build_id: str) -> dict:
-    """Return the current state of a CI build."""
+    """查询 CI 构建状态。"""
     return BUILDS.get(build_id, {"status": "not_found"})
 
 
@@ -211,18 +274,20 @@ if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 ```
 
-启动后，MCP endpoint 默认为 `http://127.0.0.1:8000/mcp`。生产环境应放在 TLS 和鉴权之后，同时验证 `Origin`、配置超时和限流。它适合 Devin 一类远程沙盒、云端 Agent 集群和企业内部工具网关。
+</details>
 
-Streamable HTTP 不是一条永不关闭的 WebSocket。它通过普通 HTTP 请求与可选 SSE 流组合出双向通信能力：请求可以短连接返回，长任务才需要保持事件流。
+默认 endpoint 是 `http://127.0.0.1:8000/mcp`。它不是一条永不关闭的 WebSocket 连接，而是普通 HTTP 请求与可选事件流的组合。对云端 Agent、远程沙盒和企业内部工具网关来说，这种方式比本地 STDIO 更容易部署和治理。
 
-### 3. SSE：兼容旧 HTTP+SSE 系统
+### 3. SSE：旧 HTTP+SSE transport 的兼容层
 
-协议版本 `2024-11-05` 使用过独立的 HTTP+SSE transport：客户端通过 SSE endpoint 接收 server 消息，再通过另一个 HTTP endpoint 向 server 发消息。Streamable HTTP 已经取代这种双 endpoint 设计。
+早期 MCP transport 使用一个 SSE endpoint 接收 Server 消息，再使用另一个 HTTP endpoint 向 Server 发消息。SSE 本身是 server-to-client 的单向推送，client-to-server 方向依靠额外的 HTTP 请求完成。
 
-如果内部平台还运行着旧版 MCP client，可以临时保留 legacy SSE server：
+如果内部还有旧版 MCP Client，可以暂时保留这个 transport。新服务优先使用 Streamable HTTP。
+
+<details>
+<summary>展开旧版 SSE Server 示例</summary>
 
 ```python
-# server_legacy_sse.py
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
@@ -234,84 +299,107 @@ mcp = FastMCP(
 
 @mcp.tool()
 def get_ticket(ticket_id: str) -> dict:
-    """Read a ticket from a legacy internal system."""
+    """读取旧测试管理系统中的缺陷单。"""
     return {
         "id": ticket_id,
         "status": "open",
-        "owner": "platform-team",
+        "owner": "qa-platform",
     }
 
 
 if __name__ == "__main__":
-    # 仅用于兼容旧客户端；新服务优先使用 streamable-http。
     mcp.run(transport="sse")
 ```
 
-SSE 本身只有 server-to-client 单向推送能力；旧 MCP transport 依赖额外的 HTTP POST endpoint 补上 client-to-server 方向。它适合企业旧系统迁移期兼容，不适合作为 2026 年新 MCP 服务的默认方案。
+</details>
 
-工程上可以这样记：**STDIO 是本地进程管道，Streamable HTTP 是当前远程标准，HTTP+SSE 是兼容历史客户端的过渡层。**具体协议要求可参考 [MCP 官方 Transports 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)。
+SSE 适合迁移期和旧系统集成，不建议把它作为新 MCP 服务的默认选项。协议细节可参考 [MCP 官方 Transports 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)。
 
----
+可以用一句话记住三者：**STDIO 解决本地进程通信，Streamable HTTP 解决当前远程服务，SSE 负责兼容旧客户端。**
 
-## 五、 MCP 对决传统 Function Calling（到底强在哪里？）
+## 四、MCP 和传统 Function Calling 的差异
 
-| 对比维度 | 传统 Function Calling（函数调用） | MCP (Model Context Protocol) |
+两者不是互斥关系。MCP Server 最终仍然需要被 Agent 或模型调用；很多 Agent 内部会把 MCP Tools 转换成模型能理解的函数定义。区别在于工具的发现、生命周期和传输边界由谁负责。
+
+| 对比维度 | 传统 Function Calling | MCP |
 | :--- | :--- | :--- |
-| **软件工程解耦** | **极差**。工具 Schema 硬编码在你的 AI 业务层逻辑里，难以组件化。 | **极强**。工具在独立脚本（Server），AI（Client）通过标准接口动态自发现。 |
-| **多厂商支持** | **零**。OpenAI、Claude、Gemini 各种格式割裂。 | **大一统**。一次编写，多客户端、多端、多模型之间**即插即用**。 |
-| **安全与类型约束** | **弱**。大模型传错参数 Key 导致崩溃，缺乏强类型阻断。 | **强**。FastMCP 通过 Python 类型提示自动建立强类型网闸，不合规直接拦截。 |
-| **上下文边界** | **单维**。只能告诉大模型“干动作”（执行 Tool ）。 | **三维全栈**。同时向大模型提供**动作权(Tool)**、**只读资源(Resource)**和**元认知引导(Prompt)**。 |
+| 工具定义 | 通常由应用在请求中直接传入 | Server 暴露，Client 可发现 |
+| 复用方式 | 需要自行抽成 SDK 或服务 | 一个 Server 可供多个兼容 Client 使用 |
+| 模型适配 | 应用处理不同厂商的 tool schema | Client 负责协议适配，模型仍由 Host 管理 |
+| 数据范围 | 主要描述可调用函数 | Tools、Resources、Prompts 三类能力 |
+| 部署方式 | 常与 Agent 进程绑定 | 可以是本地进程，也可以是远程服务 |
+| 复杂度 | 单个应用、少量工具时更低 | 工具多、团队复用或需要独立治理时更合适 |
 
----
+Function Calling 的优点是简单、可控、调试路径短。MCP 的优点是把工具从单个 Agent 中拆出来，便于权限管理、版本发布和跨客户端复用。MCP 也不是自动获得安全性：Server 仍然要自己做鉴权、输入校验、超时、幂等和审计。
 
-## 六、 在主流 Agent 与 AI 编辑器里的落地配置指南
+## 五、在主流 Agent 和 AI 编辑器里配置
 
-### 1. 在本地 AI 编程利器（Cursor / Windsurf）中配置
-由于这些编辑器直接运行在你本地，它们和 MCP Server 最完美的通信模式就是 **STDIO 模式**。
+### 1. Cursor、Windsurf 或 Codex：配置 STDIO
 
-#### 配置 Cursor：
-1. 打开 Cursor，点击右上角齿轮进入 **Settings** -> **Features**。
-2. 向下滚动到 **MCP** 区域，点击 **"+ Add New MCP Server"**。
-3. 填入以下配置：
-   * **Name**: `architect-suite`
-   * **Type**: 选择 `command`
-   * **Command**: 填入调用你虚拟环境内 Python 执行器的**绝对路径**和脚本**绝对路径**。
-     ```bash
-     /Users/yourname/.virtualenvs/mcp-env/bin/python /Users/yourname/projects/mcp/advanced_server.py
-     ```
-4. 点击 **Save** 看到绿色的 Connected 即可使用！
+本地编辑器通常直接启动 MCP Server。配置时使用绝对路径，并确保运行环境里已经安装依赖。
 
-### 2. 在全自动云端 Agent（如 Devin 或者是你自建的微服务框架）中配置
-Devin 运行在独立的云端 Linux 沙盒环境中，无法通过本地 stdio 管道直接拉起你的脚本。此时我们必须将代码里的 `mcp.run()` 转换为 **Streamable HTTP 或 SSE 拓扑网络服务**。
+<details>
+<summary>展开本地 Agent 配置示例</summary>
 
-#### 第一步：修改 Python 启动方式
-将 `advanced_server.py` 的最底部代码改成如下结构：
-```python
-if __name__ == "__main__":
-    import os
-    if os.getenv("MCP_TRANSPORT", "").lower() == "http":
-        mcp.run(transport="streamable-http")
-    else:
-        mcp.run(transport="stdio")
+```json
+{
+  "mcpServers": {
+    "local-test-tools": {
+      "command": "/Users/yourname/.venvs/mcp/bin/python",
+      "args": ["/Users/yourname/projects/mcp/server_stdio.py"]
+    }
+  }
+}
 ```
 
-#### 第二步：公网边界暴露（内网穿透）
-在本地终端让服务以 HTTP 模式跑在 8000 端口，并使用 `ngrok` 映射到公网：
+</details>
+
+不同编辑器的配置文件位置和字段名称可能不同，最终以客户端当前版本的设置页面为准。验证时先观察 Server 是否成功启动，再确认工具列表能否被发现，最后用一个只读工具做调用测试。
+
+### 2. 远程 Agent：配置 Streamable HTTP
+
+远程部署时把 Server 运行在服务端地址，并把 endpoint 交给 Agent 的 MCP Client。不要把开发机临时暴露到公网作为长期方案；本地联调可以使用 ngrok，但生产环境应使用正式域名、TLS 和鉴权。
+
+<details>
+<summary>展开 HTTP 模式启动示例</summary>
+
 ```bash
 export MCP_TRANSPORT=http
-python advanced_server.py
+python server.py
+
+# 仅用于本地联调
 ngrok http 8000
 ```
-你会得到一个公网安全的 HTTPS 域名：`https://your-tunnel.ngrok-free.app`。
 
-#### 第三步：在 Devin 任务中注入
-在和 Devin 的对话框中，直接把端点作为上下文交付给它：
-> “Hey Devin, the live remote MCP endpoint is `https://your-tunnel.ngrok-free.app/mcp`. Please initialize your local client to sync with this server, and utilize the `async_web_scraper` tool to complete coding tasks.”
+</details>
 
----
+远程 Client 使用类似下面的 endpoint：
 
-## 七、 血泪避坑指南
+<details>
+<summary>展开远程 endpoint 配置示例</summary>
 
-1.  **异步事件循环饥饿（Event Loop Starvation）**：在 MCP 的 Tool 里执行高密度的 CPU 计算（比如大矩阵运算或压缩），请务必使用 `asyncio.to_thread()` 踢到后台，否则单线程事件循环一卡死，stdio 管道会瞬间断开。
-2.  **绝对路径执念**：IDE 调起子进程时的当前工作目录（CWD）极其不可预测，请在配置里焊死**绝对路径**，别用相对路径碰运气。
-3.  **大模型上下文暴击（Context Flooding）**：由于 MCP 的 Resource 允许大模型一次性读取大量文本，请务必在任何 Resource 和 Tool 的回包中，主动做硬编码的 **Top-N 字符截断**（例如最多吐出 5000 字），防止产生天价 Token 账单或让 AI 注意力涣散。
+```json
+{
+  "mcpServers": {
+    "ci-build-service": {
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+## 六、测试工程师最容易踩到的坑
+
+1. **协议输出和业务日志混在一起**：STDIO 模式下，stdout 只留给 JSON-RPC；诊断日志写 stderr。
+2. **工具没有超时**：网络请求、查询构建状态和读取日志都应设置超时，并返回可识别的错误类型。
+3. **返回内容过大**：日志和测试报告先截断、分页或提供 Resource URI，不要一次性把整份报告放进上下文。
+4. **副作用没有幂等设计**：触发回归、创建缺陷、重跑构建前，应支持幂等键和确认策略。
+5. **只测模型不测工具链**：至少覆盖 schema 校验、权限失败、超时、空结果、重复调用和服务重启后的重新连接。
+6. **把 MCP 当成安全边界**：MCP 只定义通信和能力发现，真正的认证、授权、敏感数据脱敏和审计仍由服务端负责。
+
+在测试平台里，比较实用的落地顺序是：先用 STDIO 接一个只读查询工具，确认工具描述和返回结果稳定；再迁移到 Streamable HTTP，补齐鉴权、限流和观测；最后根据旧客户端情况决定是否保留 SSE 兼容层。这样每一步都有明确的回滚点，也方便定位问题到底发生在模型、Client、传输层还是业务服务。
