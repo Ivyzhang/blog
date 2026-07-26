@@ -5,7 +5,7 @@ layout: post
 description: "一个接入 GitHub App 的 AI Review Bot：从 Webhook、SQLite 任务队列到行内 Review，拆解如何把模型接进真实代码审查流程。"
 category: "AI Agent"
 tags: ["AI Agent", "代码审查", "工程效能", "GitHub App", "FastAPI", "开源实践"]
-featured: false
+featured: true
 ---
 
 # AI Code Review IvyBot
