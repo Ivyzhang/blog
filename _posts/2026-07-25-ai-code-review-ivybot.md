@@ -6,6 +6,7 @@ description: "一个接入 GitHub App 的 AI Review Bot：从 Webhook、SQLite �
 category: "AI Agent"
 tags: ["AI Agent", "代码审查", "工程效能", "GitHub App", "FastAPI", "开源实践"]
 featured: true
+cover_style: "review"
 ---
 
 # AI Code Review IvyBot

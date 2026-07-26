@@ -35,6 +35,14 @@ title: 首页
           <a class="featured-visual{% if post.cover_style %} featured-visual--{{ post.cover_style }}{% endif %}" href="{{ post.url | relative_url }}" aria-label="阅读：{{ post.title }}">
             {% if post.cover %}
             <img src="{{ post.cover | relative_url }}" alt="{{ post.title }}文章配图">
+            {% elsif post.cover_style == "review" %}
+            <div class="review-cover" aria-hidden="true">
+              <span class="review-label">GITHUB APP / AI REVIEW</span>
+              <div class="review-flow">
+                <span>PR</span><i></i><span>DIFF</span><i></i><span>REVIEW</span>
+              </div>
+              <strong>IVYBOT</strong>
+            </div>
             {% else %}
             <div class="protocol-cover" aria-hidden="true">
               <span class="protocol-label">MODEL CONTEXT PROTOCOL</span>
