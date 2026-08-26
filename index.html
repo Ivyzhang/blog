@@ -35,6 +35,28 @@ title: 首页
           <a class="featured-visual{% if post.cover_style %} featured-visual--{{ post.cover_style }}{% endif %}" href="{{ post.url | relative_url }}" aria-label="阅读：{{ post.title }}">
             {% if post.cover %}
             <img src="{{ post.cover | relative_url }}" alt="{{ post.title }}文章配图">
+            {% elsif post.cover_style == "gpu" %}
+            <div class="gpu-cover" aria-hidden="true">
+              <div class="gpu-kicker">GPU INFERENCE / QUALITY CONTROL</div>
+              <div class="gpu-cover-grid">
+                <div class="gpu-gate">
+                  <div class="gpu-gate-title">RELEASE GATE</div>
+                  <p>让每次推理发布都留下可复现、可解释的证据。</p>
+                  <div class="gpu-gate-line"></div>
+                  <span class="gpu-signal gpu-signal--accuracy">ACCURACY</span>
+                  <span class="gpu-signal gpu-signal--latency">LATENCY</span>
+                  <span class="gpu-signal gpu-signal--memory">MEMORY</span>
+                </div>
+                <div class="gpu-status">
+                  <strong>VALIDATION STATUS</strong>
+                  <span><b>Numerical correctness</b><em>PASS</em></span>
+                  <span><b>Dynamic shape boundary</b><em>PASS</em></span>
+                  <span><b>p95 latency baseline</b><em class="is-check">CHECK</em></span>
+                  <span><b>Environment fingerprint</b><em>PASS</em></span>
+                </div>
+              </div>
+              <div class="gpu-footer"><span>TensorRT · CUDA · PyTorch</span><span>DECISION <b>PASS</b></span></div>
+            </div>
             {% elsif post.cover_style == "review" %}
             <div class="review-cover" aria-hidden="true">
               <span class="review-label">GITHUB APP / AI REVIEW</span>

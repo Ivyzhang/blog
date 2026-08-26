@@ -137,6 +137,26 @@ button { font: inherit; }
 .featured-visual { min-height: 290px; display: grid; place-items: center; overflow: hidden; background: #edf0eb; }
 .featured-visual img { width: 100%; height: 100%; min-height: 290px; object-fit: contain; padding: 28px; background: #fff; }
 .featured-visual--mcp { background: var(--green-soft); }
+.featured-visual--gpu { padding: 18px; background: #f4f0e8; }
+.gpu-cover { width: 100%; min-height: 290px; padding: 22px; color: var(--ink); background: #f4f0e8; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.gpu-kicker { margin-bottom: 18px; color: var(--green); letter-spacing: 1.5px; }
+.gpu-cover-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(150px, .75fr); gap: 14px; }
+.gpu-gate { min-height: 192px; position: relative; overflow: hidden; padding: 20px; color: #eef4ef; background: linear-gradient(135deg, #26312d, #111a18); border: 1px solid #526b5d; }
+.gpu-gate::before { content: ""; position: absolute; inset: 16px; border: 1px solid #587766; pointer-events: none; }
+.gpu-gate::after { content: ""; position: absolute; width: 170px; height: 170px; top: 20px; right: -80px; border: 1px solid #75c898; border-radius: 50%; box-shadow: 0 0 0 14px #5b9e7944, 0 0 0 28px #5b9e7928; }
+.gpu-gate-title { position: relative; z-index: 1; margin-top: 26px; color: #d8f5e4; font-size: 24px; line-height: 1; }
+.gpu-gate p { position: relative; z-index: 1; max-width: 190px; margin: 12px 0 0; color: #a7bcb0; font-family: inherit; font-size: 10px; }
+.gpu-gate-line { position: absolute; right: 20px; bottom: 29px; left: 20px; height: 2px; background: linear-gradient(90deg, #6dd798 0 66%, #cc9a59 66% 82%, #a6534b 82%); box-shadow: 0 0 10px #65d492; }
+.gpu-signal { position: absolute; bottom: 15px; color: #b7c7bd; font-size: 8px; }
+.gpu-signal--accuracy { left: 20px; } .gpu-signal--latency { left: 45%; } .gpu-signal--memory { right: 20px; }
+.gpu-status { padding: 16px; background: #fffdf9; border: 1px solid #c9c0b2; }
+.gpu-status > strong { display: block; margin-bottom: 10px; color: #a16b22; font-size: 10px; letter-spacing: 1px; }
+.gpu-status > span { display: flex; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid #e0d9ce; }
+.gpu-status > span:last-child { border-bottom: 0; }
+.gpu-status b { overflow: hidden; color: #4f5851; font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.gpu-status em { color: var(--green); font-style: normal; font-weight: 800; } .gpu-status em.is-check { color: #a16b22; }
+.gpu-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; color: #666d67; }
+.gpu-footer b { color: var(--green); }
 .featured-visual--review { background: #f0dfd8; }
 .review-cover { width: 100%; min-height: 290px; padding: 30px; display: flex; flex-direction: column; justify-content: space-between; color: #24201d; }
 .review-label { color: #a84a3e; font-size: 12px; font-weight: 800; letter-spacing: 0; }
@@ -266,7 +286,11 @@ button { font: inherit; }
   .section-heading h2 { font-size: 30px; }
   .featured-section, .articles-section { padding: 60px 0 72px; }
   .featured-grid, .article-grid { grid-template-columns: 1fr; }
-  .featured-visual, .featured-visual img, .protocol-cover, .review-cover { min-height: 230px; }
+  .featured-visual, .featured-visual img, .protocol-cover, .review-cover, .gpu-cover { min-height: 230px; }
+  .featured-visual--gpu { padding: 12px; }
+  .gpu-cover { padding: 16px; }
+  .gpu-cover-grid { grid-template-columns: 1fr; }
+  .gpu-gate { min-height: 170px; }
   .protocol-cover strong { font-size: 68px; }
   .protocol-nodes i { width: 18px; }
   .featured-body { padding: 24px; }
